@@ -1,12 +1,25 @@
 # Audio Debug Console
 
-音声録音・再生・ビジュアライザー + 音質向上処理
+音声録音・再生・ビジュアライザー + 録音環境最適化
 
 ## 機能
 
 - マイク音声のリアルタイム可視化
+- **録音環境テンプレート**
+  - Studio (静かな部屋)
+  - Office with AC (エアコン付きオフィス)
+  - Outdoor Cicadas (蝉の声がする屋外)
+  - Cafe/Restaurant (カフェ・レストラン)
+  - Car Interior (車内)
+  - Windy Outdoor (風の強い屋外)
+  - Echo Room/Hall (残響のある部屋)
+  - Phone Call Quality (電話品質)
+- **環境分析機能**
+  - 3秒間の音響環境分析
+  - 周波数帯域別ノイズレベル計測
+  - 自動テンプレート推奨
 - **リアルタイム音質向上処理**
-  - ノイズゲート（背景ノイズ除去）
+  - ノイズゲート
   - ローカット/ハイカットフィルター
   - コンプレッサー
   - ゲイン調整
@@ -17,14 +30,19 @@
 
 1. `index.html` をブラウザで開く
 2. STARTボタンでマイクアクセス許可
-3. **Audio Enhancement** で音質調整
-   - Noise Gate: 背景ノイズのカットレベル
-   - Low Cut: 低音域ノイズカット
-   - High Cut: 高音域ノイズカット  
-   - Compressor: 音量の圧縮比
-   - Gain: 全体音量
-4. RECボタンで録音開始/停止
-5. PLAYで再生、DOWNLOADでファイル保存
+3. **Environment Analysis** で録音環境を分析
+4. **Recording Environment Templates** でプリセット選択
+   - または "Auto-Select Template" で自動選択
+5. **Audio Enhancement** で細かい調整
+6. RECボタンで録音開始/停止
+7. PLAYで再生、DOWNLOADでファイル保存
+
+## 専門的な特徴
+
+- 周波数帯域別ノイズ分析 (0-100Hz, 100-300Hz, 300-800Hz, 800-1200Hz, 1200Hz+)
+- ダイナミックレンジ計測
+- ルールベース環境診断
+- リアルタイム音響処理チェーン
 
 ## ファイル
 
