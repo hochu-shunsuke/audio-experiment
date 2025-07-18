@@ -17,6 +17,15 @@ class AudioVisualizer {
         this.recordedBlob = null;
         this.audioElement = null;
         
+        // 音響処理関連
+        this.sourceNode = null;
+        this.gainNode = null;
+        this.compressorNode = null;
+        this.lowPassFilter = null;
+        this.highPassFilter = null;
+        this.destinationNode = null;
+        this.processingEnabled = true;
+        
         this.init();
     }
 
@@ -43,6 +52,9 @@ class AudioVisualizer {
         this.stopRecordBtn.addEventListener('click', () => this.stopRecording());
         this.playBtn.addEventListener('click', () => this.playRecording());
         this.downloadBtn.addEventListener('click', () => this.downloadRecording());
+        
+        // 音響処理コントロール
+        this.setupAudioControls();
     }
 
     createBars() {
@@ -73,16 +85,27 @@ class AudioVisualizer {
             this.analyser = this.audioContext.createAnalyser();
             this.microphone = this.audioContext.createMediaStreamSource(stream);
             
+            // 音響処理チェーンを構築
+            this.setupAudioProcessing();
+            
             // アナライザーの設定
             this.analyser.fftSize = 256;
             this.bufferLength = this.analyser.frequencyBinCount;
             this.dataArray = new Uint8Array(this.bufferLength);
             
-            // マイクをアナライザーに接続
-            this.microphone.connect(this.analyser);
+            // マイクを音響処理チェーンに接続
+            this.connectAudioChain();
             
-            // MediaRecorderを設定
-            this.mediaRecorder = new MediaRecorder(stream);
+            // MediaRecorderを設定（処理済み音声も録音可能にする）
+            if (this.processingEnabled && this.destinationNode) {
+                // 処理済み音声のストリームを作成
+                const processedStream = this.audioContext.createMediaStreamDestination();
+                this.destinationNode.connect(processedStream);
+                this.mediaRecorder = new MediaRecorder(processedStream.stream);
+            } else {
+                // 元の音声ストリームを使用
+                this.mediaRecorder = new MediaRecorder(stream);
+            }
             this.setupMediaRecorder();
             
             this.isRunning = true;
@@ -110,6 +133,13 @@ class AudioVisualizer {
         if (this.microphone) {
             this.microphone.disconnect();
         }
+        
+        // 音響処理ノードの切断
+        if (this.highPassFilter) this.highPassFilter.disconnect();
+        if (this.lowPassFilter) this.lowPassFilter.disconnect();
+        if (this.compressorNode) this.compressorNode.disconnect();
+        if (this.gainNode) this.gainNode.disconnect();
+        if (this.destinationNode) this.destinationNode.disconnect();
         
         if (this.audioContext) {
             this.audioContext.close();
@@ -243,6 +273,133 @@ class AudioVisualizer {
         URL.revokeObjectURL(url);
         
         this.status.textContent = 'File download initiated: ' + a.download;
+    }
+
+    setupAudioControls() {
+        const noiseGate = document.getElementById('noiseGate');
+        const lowCut = document.getElementById('lowCut');
+        const highCut = document.getElementById('highCut');
+        const compressor = document.getElementById('compressor');
+        const gain = document.getElementById('gain');
+        const enableProcessing = document.getElementById('enableProcessing');
+        
+        const noiseGateValue = document.getElementById('noiseGateValue');
+        const lowCutValue = document.getElementById('lowCutValue');
+        const highCutValue = document.getElementById('highCutValue');
+        const compressorValue = document.getElementById('compressorValue');
+        const gainValue = document.getElementById('gainValue');
+        
+        noiseGate.addEventListener('input', (e) => {
+            const value = e.target.value;
+            noiseGateValue.textContent = value + 'dB';
+            if (this.compressorNode) {
+                this.compressorNode.threshold.value = parseFloat(value);
+            }
+        });
+        
+        lowCut.addEventListener('input', (e) => {
+            const value = e.target.value;
+            lowCutValue.textContent = value + 'Hz';
+            if (this.highPassFilter) {
+                this.highPassFilter.frequency.value = parseFloat(value);
+            }
+        });
+        
+        highCut.addEventListener('input', (e) => {
+            const value = e.target.value;
+            highCutValue.textContent = value + 'Hz';
+            if (this.lowPassFilter) {
+                this.lowPassFilter.frequency.value = parseFloat(value);
+            }
+        });
+        
+        compressor.addEventListener('input', (e) => {
+            const value = e.target.value;
+            compressorValue.textContent = value + ':1';
+            if (this.compressorNode) {
+                this.compressorNode.ratio.value = parseFloat(value);
+            }
+        });
+        
+        gain.addEventListener('input', (e) => {
+            const value = e.target.value;
+            gainValue.textContent = value + 'x';
+            if (this.gainNode) {
+                this.gainNode.gain.value = parseFloat(value);
+            }
+        });
+        
+        enableProcessing.addEventListener('change', (e) => {
+            this.processingEnabled = e.target.checked;
+            if (this.isRunning) {
+                this.reconnectAudioChain();
+            }
+        });
+    }
+
+    setupAudioProcessing() {
+        if (!this.audioContext) return;
+        
+        // ゲインノード（音量調整）
+        this.gainNode = this.audioContext.createGain();
+        this.gainNode.gain.value = parseFloat(document.getElementById('gain').value);
+        
+        // コンプレッサー（ノイズゲート効果）
+        this.compressorNode = this.audioContext.createDynamicsCompressor();
+        this.compressorNode.threshold.value = parseFloat(document.getElementById('noiseGate').value);
+        this.compressorNode.knee.value = 30;
+        this.compressorNode.ratio.value = parseFloat(document.getElementById('compressor').value);
+        this.compressorNode.attack.value = 0.003;
+        this.compressorNode.release.value = 0.25;
+        
+        // ハイパスフィルター（低音ノイズカット）
+        this.highPassFilter = this.audioContext.createBiquadFilter();
+        this.highPassFilter.type = 'highpass';
+        this.highPassFilter.frequency.value = parseFloat(document.getElementById('lowCut').value);
+        this.highPassFilter.Q.value = 1;
+        
+        // ローパスフィルター（高音ノイズカット）
+        this.lowPassFilter = this.audioContext.createBiquadFilter();
+        this.lowPassFilter.type = 'lowpass';
+        this.lowPassFilter.frequency.value = parseFloat(document.getElementById('highCut').value);
+        this.lowPassFilter.Q.value = 1;
+        
+        // 出力用のゲインノード
+        this.destinationNode = this.audioContext.createGain();
+    }
+
+    connectAudioChain() {
+        if (!this.microphone || !this.analyser) return;
+        
+        if (this.processingEnabled) {
+            // 処理チェーン: マイク → ハイパス → ローパス → コンプレッサー → ゲイン → アナライザー
+            this.microphone.connect(this.highPassFilter);
+            this.highPassFilter.connect(this.lowPassFilter);
+            this.lowPassFilter.connect(this.compressorNode);
+            this.compressorNode.connect(this.gainNode);
+            this.gainNode.connect(this.destinationNode);
+            this.destinationNode.connect(this.analyser);
+        } else {
+            // 直接接続
+            this.microphone.connect(this.analyser);
+        }
+    }
+
+    reconnectAudioChain() {
+        // 既存の接続を切断
+        try {
+            this.microphone.disconnect();
+            if (this.highPassFilter) this.highPassFilter.disconnect();
+            if (this.lowPassFilter) this.lowPassFilter.disconnect();
+            if (this.compressorNode) this.compressorNode.disconnect();
+            if (this.gainNode) this.gainNode.disconnect();
+            if (this.destinationNode) this.destinationNode.disconnect();
+        } catch (e) {
+            // 接続がない場合のエラーを無視
+        }
+        
+        // 新しい接続を作成
+        this.connectAudioChain();
     }
 }
 
