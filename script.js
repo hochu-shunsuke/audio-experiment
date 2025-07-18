@@ -102,6 +102,11 @@ class AudioVisualizer {
             }
         };
         
+        // 音声コード生成関連
+        this.audioCodeData = null;
+        this.codeCanvas = null;
+        this.codeContext = null;
+        
         this.init();
     }
 
@@ -134,6 +139,9 @@ class AudioVisualizer {
         
         // テンプレート関連
         this.setupTemplateControls();
+        
+        // 音声コード生成関連
+        this.setupAudioCodeControls();
     }
 
     createBars() {
@@ -281,6 +289,10 @@ class AudioVisualizer {
             this.recordedBlob = new Blob(this.recordedChunks, { type: 'audio/webm' });
             this.playBtn.disabled = false;
             this.downloadBtn.disabled = false;
+            
+            // 音声コード生成セクションを表示
+            document.getElementById('audioCodeSection').style.display = 'block';
+            document.getElementById('generateCodeBtn').disabled = false;
         };
     }
 
@@ -852,6 +864,289 @@ ${this.diagnoseEnvironment(lowFreq, midLowFreq, midFreq, midHighFreq, highFreq, 
         }
         
         return 'office_ac'; // デフォルト
+    }
+
+    setupAudioCodeControls() {
+        const generateBtn = document.getElementById('generateCodeBtn');
+        const downloadBtn = document.getElementById('downloadCodeBtn');
+        
+        this.codeCanvas = document.getElementById('audioCodeCanvas');
+        this.codeContext = this.codeCanvas.getContext('2d');
+        
+        generateBtn.addEventListener('click', () => {
+            this.generateAudioCode();
+        });
+        
+        downloadBtn.addEventListener('click', () => {
+            this.downloadAudioCode();
+        });
+    }
+
+    async generateAudioCode() {
+        if (!this.recordedBlob) return;
+        
+        const generateBtn = document.getElementById('generateCodeBtn');
+        const progressDiv = document.getElementById('codeProgress');
+        const progressBar = document.getElementById('codeProgressBar');
+        const progressText = document.getElementById('codeProgressText');
+        
+        generateBtn.disabled = true;
+        progressDiv.style.display = 'block';
+        
+        this.updateStatus('Analyzing recorded audio for code generation...');
+        
+        try {
+            // 録音データを音響分析
+            progressText.textContent = 'Loading audio data...';
+            progressBar.style.width = '20%';
+            
+            const audioBuffer = await this.loadAudioBuffer(this.recordedBlob);
+            
+            progressText.textContent = 'Extracting audio features...';
+            progressBar.style.width = '50%';
+            
+            // 音響特徴を抽出
+            const audioFeatures = this.extractAudioFeatures(audioBuffer);
+            
+            progressText.textContent = 'Generating visual code...';
+            progressBar.style.width = '80%';
+            
+            // 視覚コードを生成
+            this.audioCodeData = this.createAudioCodeData(audioFeatures);
+            
+            progressText.textContent = 'Rendering code image...';
+            progressBar.style.width = '100%';
+            
+            // キャンバスに描画
+            this.renderAudioCode(this.audioCodeData);
+            
+            // UI更新
+            document.getElementById('audioCodeCanvas').style.display = 'block';
+            document.getElementById('codeMetadata').style.display = 'block';
+            document.getElementById('downloadCodeBtn').disabled = false;
+            
+            progressDiv.style.display = 'none';
+            generateBtn.disabled = false;
+            
+            this.updateStatus('Audio code generated successfully!');
+            
+        } catch (error) {
+            console.error('Error generating audio code:', error);
+            this.updateStatus('Error generating audio code: ' + error.message);
+            progressDiv.style.display = 'none';
+            generateBtn.disabled = false;
+        }
+    }
+
+    async loadAudioBuffer(blob) {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        return await audioContext.decodeAudioData(arrayBuffer);
+    }
+
+    extractAudioFeatures(audioBuffer) {
+        const channelData = audioBuffer.getChannelData(0);
+        const sampleRate = audioBuffer.sampleRate;
+        const duration = audioBuffer.duration;
+        
+        // 音声を複数のセグメントに分割して分析
+        const segmentCount = 16; // 16x16のグリッドを生成予定
+        const segmentLength = Math.floor(channelData.length / segmentCount);
+        
+        const features = {
+            duration: duration,
+            sampleRate: sampleRate,
+            segments: [],
+            spectralData: [],
+            timestamp: Date.now()
+        };
+        
+        for (let i = 0; i < segmentCount; i++) {
+            const start = i * segmentLength;
+            const end = Math.min(start + segmentLength, channelData.length);
+            const segment = channelData.slice(start, end);
+            
+            // 各セグメントの特徴量を計算
+            const segmentFeatures = {
+                rms: this.calculateRMS(segment),
+                zcr: this.calculateZeroCrossingRate(segment),
+                spectralCentroid: this.calculateSpectralCentroid(segment, sampleRate),
+                energy: this.calculateEnergy(segment)
+            };
+            
+            features.segments.push(segmentFeatures);
+        }
+        
+        return features;
+    }
+
+    calculateRMS(segment) {
+        let sum = 0;
+        for (let i = 0; i < segment.length; i++) {
+            sum += segment[i] * segment[i];
+        }
+        return Math.sqrt(sum / segment.length);
+    }
+
+    calculateZeroCrossingRate(segment) {
+        let crossings = 0;
+        for (let i = 1; i < segment.length; i++) {
+            if ((segment[i] >= 0) !== (segment[i-1] >= 0)) {
+                crossings++;
+            }
+        }
+        return crossings / segment.length;
+    }
+
+    calculateSpectralCentroid(segment, sampleRate) {
+        // 簡易的なスペクトラム重心計算
+        const fft = this.simpleFFT(segment);
+        let weightedSum = 0;
+        let magnitudeSum = 0;
+        
+        for (let i = 0; i < fft.length / 2; i++) {
+            const magnitude = Math.sqrt(fft[i].real * fft[i].real + fft[i].imag * fft[i].imag);
+            const frequency = (i * sampleRate) / fft.length;
+            weightedSum += frequency * magnitude;
+            magnitudeSum += magnitude;
+        }
+        
+        return magnitudeSum > 0 ? weightedSum / magnitudeSum : 0;
+    }
+
+    calculateEnergy(segment) {
+        let energy = 0;
+        for (let i = 0; i < segment.length; i++) {
+            energy += segment[i] * segment[i];
+        }
+        return energy / segment.length;
+    }
+
+    simpleFFT(signal) {
+        // 簡易的なFFT実装（実際のプロジェクトではFFT.jsなどを使用推奨）
+        const N = signal.length;
+        const result = [];
+        
+        for (let k = 0; k < N; k++) {
+            let real = 0;
+            let imag = 0;
+            
+            for (let n = 0; n < N; n++) {
+                const angle = -2 * Math.PI * k * n / N;
+                real += signal[n] * Math.cos(angle);
+                imag += signal[n] * Math.sin(angle);
+            }
+            
+            result.push({ real, imag });
+        }
+        
+        return result;
+    }
+
+    createAudioCodeData(features) {
+        const gridSize = 16; // 16x16のコード
+        const grid = [];
+        
+        // 音響特徴量を正規化してグリッドに配置
+        for (let i = 0; i < gridSize; i++) {
+            grid[i] = [];
+            for (let j = 0; j < gridSize; j++) {
+                const index = i * gridSize + j;
+                
+                if (index < features.segments.length) {
+                    const segment = features.segments[index];
+                    // 複数の特徴量を組み合わせて値を生成
+                    const value = this.normalizeFeature(
+                        segment.rms * 0.4 + 
+                        segment.zcr * 0.3 + 
+                        segment.energy * 0.3
+                    );
+                    grid[i][j] = value;
+                } else {
+                    // データが足りない場合は隣接値から補間
+                    const prevI = Math.max(0, i - 1);
+                    const prevJ = Math.max(0, j - 1);
+                    grid[i][j] = grid[prevI] && grid[prevI][prevJ] ? grid[prevI][prevJ] * 0.8 : 0;
+                }
+            }
+        }
+        
+        return {
+            grid: grid,
+            metadata: {
+                duration: features.duration,
+                sampleRate: features.sampleRate,
+                timestamp: features.timestamp,
+                version: '1.0',
+                type: 'audio-visual-code'
+            }
+        };
+    }
+
+    normalizeFeature(value) {
+        // 0-1の範囲に正規化
+        return Math.max(0, Math.min(1, value * 10)); // 調整係数
+    }
+
+    renderAudioCode(codeData) {
+        const canvas = this.codeCanvas;
+        const ctx = this.codeContext;
+        const size = 400;
+        const gridSize = codeData.grid.length;
+        const cellSize = size / gridSize;
+        
+        // キャンバスをクリア
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        
+        // グリッドを描画
+        for (let i = 0; i < gridSize; i++) {
+            for (let j = 0; j < gridSize; j++) {
+                const value = codeData.grid[i][j];
+                const x = j * cellSize;
+                const y = i * cellSize;
+                
+                // 値に基づいて色を決定（QRコードライクに黒白ベース）
+                if (value > 0.5) {
+                    ctx.fillStyle = '#000000';
+                } else if (value > 0.2) {
+                    ctx.fillStyle = '#666666';
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                }
+                
+                ctx.fillRect(x, y, cellSize, cellSize);
+                
+                // グリッド線を描画
+                ctx.strokeStyle = '#cccccc';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(x, y, cellSize, cellSize);
+            }
+        }
+        
+        // メタデータを表示
+        const metadata = codeData.metadata;
+        const metadataDiv = document.getElementById('codeMetadata');
+        metadataDiv.innerHTML = `
+            <strong>Audio Visual Code</strong><br>
+            Duration: ${metadata.duration.toFixed(2)}s<br>
+            Sample Rate: ${metadata.sampleRate}Hz<br>
+            Grid Size: ${gridSize}x${gridSize}<br>
+            Generated: ${new Date(metadata.timestamp).toLocaleString()}<br>
+            Version: ${metadata.version}
+        `;
+    }
+
+    downloadAudioCode() {
+        if (!this.codeCanvas || !this.audioCodeData) return;
+        
+        // キャンバスを画像として保存
+        const link = document.createElement('a');
+        link.download = `audio-code-${this.audioCodeData.metadata.timestamp}.png`;
+        link.href = this.codeCanvas.toDataURL();
+        link.click();
+        
+        this.updateStatus('Audio code image downloaded!');
     }
 }
 

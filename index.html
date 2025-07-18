@@ -93,6 +93,22 @@
         <legend>Status</legend>
         <div id="status">Ready. Click START to begin.</div>
     </fieldset>
+    
+    <fieldset id="audioCodeSection" style="display: none;">
+        <legend>Audio Visual Code Generator</legend>
+        <button id="generateCodeBtn" disabled>Generate Audio Code</button>
+        <button id="downloadCodeBtn" disabled>Download Code Image</button>
+        <div id="codeProgress" style="display: none; margin-top: 10px;">
+            <div style="background-color: #f0f0f0; border: 1px solid #ccc; height: 15px; width: 100%;">
+                <div id="codeProgressBar" style="background-color: #4CAF50; height: 100%; width: 0%; transition: width 0.1s;"></div>
+            </div>
+            <div id="codeProgressText" style="margin-top: 5px; font-size: 12px;">Generating...</div>
+        </div>
+        <div id="audioCodeDisplay" style="margin-top: 15px; text-align: center;">
+            <canvas id="audioCodeCanvas" width="400" height="400" style="border: 1px solid #ccc; display: none;"></canvas>
+            <div id="codeMetadata" style="margin-top: 10px; font-family: monospace; font-size: 10px; display: none;"></div>
+        </div>
+    </fieldset>
 
     <script src="script.js"></script>
 </body>
