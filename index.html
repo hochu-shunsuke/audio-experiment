@@ -35,6 +35,16 @@
     </fieldset>
     
     <fieldset>
+        <legend>Audio Enhancement</legend>
+        <label>Noise Gate: <input type="range" id="noiseGate" min="-60" max="-10" value="-40" step="1"> <span id="noiseGateValue">-40dB</span></label><br>
+        <label>Low Cut: <input type="range" id="lowCut" min="50" max="500" value="80" step="10"> <span id="lowCutValue">80Hz</span></label><br>
+        <label>High Cut: <input type="range" id="highCut" min="5000" max="20000" value="15000" step="100"> <span id="highCutValue">15000Hz</span></label><br>
+        <label>Compressor: <input type="range" id="compressor" min="1" max="20" value="4" step="0.1"> <span id="compressorValue">4:1</span></label><br>
+        <label>Gain: <input type="range" id="gain" min="0.1" max="3" value="1" step="0.1"> <span id="gainValue">1.0x</span></label><br>
+        <input type="checkbox" id="enableProcessing" checked> Enable Audio Processing
+    </fieldset>
+    
+    <fieldset>
         <legend>Frequency Analyzer</legend>
         <div id="visualizer"></div>
     </fieldset>
