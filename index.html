@@ -35,6 +35,40 @@
     </fieldset>
     
     <fieldset>
+        <legend>Environment Analysis</legend>
+        <button id="analyzeBtn" disabled>Analyze Environment</button>
+        <button id="autoTemplateBtn" disabled>Auto-Select Template</button>
+        <div id="analysisProgress" style="display: none; margin-top: 10px;">
+            <div style="background-color: #f0f0f0; border: 1px solid #ccc; height: 20px; width: 100%;">
+                <div id="progressBar" style="background-color: #007acc; height: 100%; width: 0%; transition: width 0.1s;"></div>
+            </div>
+            <div id="progressText" style="margin-top: 5px; font-size: 12px;">Analyzing...</div>
+        </div>
+        <div id="analysisResult" style="margin-top: 10px; font-family: monospace; font-size: 11px; white-space: pre-line; border: 1px solid #ccc; padding: 10px; background-color: #f9f9f9; display: none;"></div>
+        <div id="recommendationResult" style="margin-top: 10px; padding: 10px; background-color: #e8f5e8; border: 1px solid #4CAF50; display: none;">
+            <strong>Recommendation:</strong> <span id="recommendedTemplate"></span><br>
+            <span id="recommendationReason" style="font-size: 12px; color: #666;"></span>
+        </div>
+    </fieldset>
+    
+    <fieldset>
+        <legend>Recording Environment Templates</legend>
+        <select id="environmentTemplate">
+            <option value="custom">Custom Settings</option>
+            <option value="studio">Studio (Quiet Room)</option>
+            <option value="office_ac">Office with AC</option>
+            <option value="outdoor_cicada">Outdoor (Cicadas)</option>
+            <option value="cafe">Cafe/Restaurant</option>
+            <option value="car">Car Interior</option>
+            <option value="windy">Windy Outdoor</option>
+            <option value="echo_room">Echo Room/Hall</option>
+            <option value="phone_call">Phone Call Quality</option>
+        </select>
+        <button id="applyTemplate">Apply Template</button>
+        <button id="resetTemplate">Reset to Default</button>
+    </fieldset>
+    
+    <fieldset>
         <legend>Audio Enhancement</legend>
         <label>Noise Gate: <input type="range" id="noiseGate" min="-60" max="-10" value="-40" step="1"> <span id="noiseGateValue">-40dB</span></label><br>
         <label>Low Cut: <input type="range" id="lowCut" min="50" max="500" value="80" step="10"> <span id="lowCutValue">80Hz</span></label><br>
