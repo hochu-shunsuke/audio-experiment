@@ -8,6 +8,15 @@ class AudioVisualizer {
         this.isRunning = false;
         this.bars = [];
         
+        // 録音関連
+        this.mediaRecorder = null;
+        this.recordedChunks = [];
+        this.isRecording = false;
+        this.recordingStartTime = null;
+        this.recordingTimer = null;
+        this.recordedBlob = null;
+        this.audioElement = null;
+        
         this.init();
     }
 
@@ -19,11 +28,21 @@ class AudioVisualizer {
     setupUI() {
         this.startBtn = document.getElementById('startBtn');
         this.stopBtn = document.getElementById('stopBtn');
+        this.recordBtn = document.getElementById('recordBtn');
+        this.stopRecordBtn = document.getElementById('stopRecordBtn');
+        this.playBtn = document.getElementById('playBtn');
+        this.downloadBtn = document.getElementById('downloadBtn');
         this.status = document.getElementById('status');
         this.visualizer = document.getElementById('visualizer');
+        this.recordingInfo = document.getElementById('recordingInfo');
+        this.recordingTime = document.getElementById('recordingTime');
 
         this.startBtn.addEventListener('click', () => this.start());
         this.stopBtn.addEventListener('click', () => this.stop());
+        this.recordBtn.addEventListener('click', () => this.startRecording());
+        this.stopRecordBtn.addEventListener('click', () => this.stopRecording());
+        this.playBtn.addEventListener('click', () => this.playRecording());
+        this.downloadBtn.addEventListener('click', () => this.downloadRecording());
     }
 
     createBars() {
@@ -44,7 +63,7 @@ class AudioVisualizer {
 
     async start() {
         try {
-            this.status.textContent = 'マイクへのアクセスを要求中...';
+            this.status.textContent = 'Requesting microphone access...';
             
             // マイクのアクセス許可を要求
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -62,21 +81,31 @@ class AudioVisualizer {
             // マイクをアナライザーに接続
             this.microphone.connect(this.analyser);
             
+            // MediaRecorderを設定
+            this.mediaRecorder = new MediaRecorder(stream);
+            this.setupMediaRecorder();
+            
             this.isRunning = true;
             this.startBtn.disabled = true;
             this.stopBtn.disabled = false;
-            this.status.textContent = '音声を検知中... 音を出してみてください！';
+            this.recordBtn.disabled = false;
+            this.status.textContent = 'Audio input active. FFT: 256 bins, Sample rate: ' + this.audioContext.sampleRate + 'Hz';
             
             this.animate();
             
         } catch (error) {
             console.error('マイクへのアクセスエラー:', error);
-            this.status.textContent = 'マイクへのアクセスが拒否されました。ブラウザの設定を確認してください。';
+            this.status.textContent = 'ERROR: Microphone access denied. Check browser settings.';
         }
     }
 
     stop() {
         this.isRunning = false;
+        
+        // 録音中の場合は停止
+        if (this.isRecording) {
+            this.stopRecording();
+        }
         
         if (this.microphone) {
             this.microphone.disconnect();
@@ -93,7 +122,9 @@ class AudioVisualizer {
         
         this.startBtn.disabled = false;
         this.stopBtn.disabled = true;
-        this.status.textContent = '停止しました。再度開始するには「開始」ボタンを押してください。';
+        this.recordBtn.disabled = true;
+        this.stopRecordBtn.disabled = true;
+        this.status.textContent = 'Audio input stopped. Click START to restart.';
     }
 
     animate() {
@@ -110,20 +141,108 @@ class AudioVisualizer {
             // 周波数データを0-1の範囲に正規化
             const value = this.dataArray[i] / 255.0;
             
-            // バーの高さを計算（最低高さを2pxに設定）
-            const barHeight = Math.max(2, value * visualizerHeight);
+            // バーの高さを計算（最低高さを1pxに設定）
+            const barHeight = Math.max(1, value * visualizerHeight);
             
-            // バーの色を音量に応じて変更
-            const hue = (value * 120); // 緑から赤へ
-            const saturation = 70 + (value * 30); // 70-100%
-            const lightness = 50 + (value * 20); // 50-70%
-            
+            // シンプルな黒色バー
             this.bars[i].style.height = `${barHeight}px`;
-            this.bars[i].style.background = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            this.bars[i].style.backgroundColor = '#000';
         }
         
         // 次のフレームをリクエスト
         requestAnimationFrame(() => this.animate());
+    }
+
+    setupMediaRecorder() {
+        this.recordedChunks = [];
+        
+        this.mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                this.recordedChunks.push(event.data);
+            }
+        };
+        
+        this.mediaRecorder.onstop = () => {
+            this.recordedBlob = new Blob(this.recordedChunks, { type: 'audio/webm' });
+            this.playBtn.disabled = false;
+            this.downloadBtn.disabled = false;
+        };
+    }
+
+    startRecording() {
+        if (!this.mediaRecorder || this.isRecording) return;
+        
+        this.recordedChunks = [];
+        this.mediaRecorder.start();
+        this.isRecording = true;
+        this.recordingStartTime = Date.now();
+        
+        this.recordBtn.disabled = true;
+        this.stopRecordBtn.disabled = false;
+        this.recordingInfo.style.display = 'block';
+        
+        // 録音時間を更新するタイマー
+        this.recordingTimer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+            this.recordingTime.textContent = `TIME: ${elapsed}s`;
+        }, 1000);
+        
+        this.status.textContent = 'Recording active. Data format: WebM';
+    }
+
+    stopRecording() {
+        if (!this.isRecording) return;
+        
+        this.mediaRecorder.stop();
+        this.isRecording = false;
+        
+        this.recordBtn.disabled = false;
+        this.stopRecordBtn.disabled = true;
+        this.recordingInfo.style.display = 'none';
+        
+        if (this.recordingTimer) {
+            clearInterval(this.recordingTimer);
+            this.recordingTimer = null;
+        }
+        
+        this.status.textContent = 'Recording stopped. Audio data ready for playback/download.';
+    }
+
+    playRecording() {
+        if (!this.recordedBlob) return;
+        
+        // 既存のオーディオ要素があれば削除
+        if (this.audioElement) {
+            this.audioElement.pause();
+            this.audioElement = null;
+        }
+        
+        // 新しいオーディオ要素を作成
+        this.audioElement = new Audio();
+        this.audioElement.src = URL.createObjectURL(this.recordedBlob);
+        this.audioElement.controls = false;
+        
+        this.audioElement.onended = () => {
+            this.status.textContent = 'Playback complete.';
+        };
+        
+        this.audioElement.play();
+        this.status.textContent = 'Playing recorded audio...';
+    }
+
+    downloadRecording() {
+        if (!this.recordedBlob) return;
+        
+        const url = URL.createObjectURL(this.recordedBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        this.status.textContent = 'File download initiated: ' + a.download;
     }
 }
 
